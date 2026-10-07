@@ -125,7 +125,7 @@ Detta är en **lokal demo, inte produktionssäker autentisering**:
   Logout tar bara bort den lokala token; en kopierad token fungerar tills den går ut.
 - .NET/Angular och paket behöver hållas på supportade, uppdaterade versioner.
 
-## Verifiering
+ ## Test och verifiering
 
 ```bash
 cd frontend
@@ -157,7 +157,7 @@ Angular-testerna använder simulerade HTTP-svar och verkliga knappklick i en DOM
 login/logout, Bearer-header, ett anrop per handling, direkt UI-uppdatering, 401/404 och nätverksfel.
 De ersätter inte ett fullständigt webbläsartest mot den riktiga backend-servern.
 
-## Verifiering
+## Senaste verifieringsresultat
 
 Verifierat 7 oktober 2026:
 
