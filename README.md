@@ -157,19 +157,12 @@ Angular-testerna använder simulerade HTTP-svar och verkliga knappklick i en DOM
 login/logout, Bearer-header, ett anrop per handling, direkt UI-uppdatering, 401/404 och nätverksfel.
 De ersätter inte ett fullständigt webbläsartest mot den riktiga backend-servern.
 
-## Demo för Marco
+## Verifiering
 
-1. Starta backend och frontend enligt ovan och öppna `http://localhost:4200`.
-2. Visa login och logga in med demo-användaren.
-3. Visa listan och lägg till **Visa TaskManager för Marco** med ett klick.
-4. Markera uppgiften klar, sedan inte klar. Visa att texten uppdateras direkt.
-5. Radera uppgiften och visa att antalet minskar.
-6. Öppna webbläsarens Network-panel: visa POST/PUT/DELETE och Bearer-header.
-   Visa att varje handling ger ett API-anrop (CORS kan också ge ett OPTIONS-anrop).
-7. Visa `[Authorize]` i backend och JWT-valideringen i `Program.cs`.
-8. Logga ut. Förklara att ett task-anrop utan token ger 401.
-9. Förklara att tasks ligger i minnet och att login är förenklad för utbildning.
+Verifierat 7 oktober 2026:
 
-Senaste verifiering (7 oktober 2026): 10 Angular-tester godkända, frontend production build
-godkänd, backend build godkänd med 0 varningar och 0 fel, samt API-testet godkänt
-mot separat backend på port 5219. Inget fullständigt webbläsar-E2E-test har körts.
+- 10 Angular-tester godkända
+- Frontend production build godkänd
+- Backend build godkänd med 0 varningar och 0 fel
+- API-test godkänt mot separat backend
+- Skyddade endpoints verifierade med och utan giltig JWT
