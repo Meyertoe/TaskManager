@@ -1,59 +1,175 @@
-# Frontend
+# TaskManager
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.2.1.
+Utbildningsprojekt för LIA: Angular-frontend och ASP.NET Core/.NET 9-backend i C#.
+Användaren kan logga in, hämta uppgifter, lägga till, markera klar/inte klar och radera.
 
-## Development server
+## Starta
 
-To start a local development server, run:
+Förutsättningar: **.NET 9 SDK**, **Node.js 24.21.0** (verifierad version) och npm.
+Projektet använder Angular 22.
 
-```bash
-ng serve
-```
+### Konfigurera din lokala JWT-nyckel först
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+Alla kommandon för backend nedan körs från projektroten (`TaskManager`).
+Signeringsnyckeln ligger inte i Git. Skapa en egen slumpmässig nyckel och spara den
+med .NET user-secrets. Den lagras utanför repot och läses automatiskt i Development.
+Kör en gång på din dator:
 
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+macOS/Linux (OpenSSL):
 
 ```bash
-ng generate --help
+dotnet user-secrets set "Jwt:Key" "$(openssl rand -base64 48)" --project backend
 ```
 
-## Building
+Windows PowerShell:
 
-To build the project run:
+```powershell
+$keyBytes = New-Object byte[] 48
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($keyBytes)
+$rng.Dispose()
+dotnet user-secrets set "Jwt:Key" ([Convert]::ToBase64String($keyBytes)) --project backend
+```
+
+Dela inte nyckeln och använd inte demo-inställningar i produktion. User-secrets är
+lokal utvecklingslagring, inte ett krypterat produktionsvalv. Backend kan också läsa
+en miljövariabel `Jwt__Key` om du föredrar det. Utan nyckel fungerar inte JWT-login.
+
+### Starta backend och frontend
+
+Terminal 1, från projektets rot:
 
 ```bash
-ng build
+dotnet restore backend/backend.csproj
+dotnet run --project backend --launch-profile http
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+Backend: `http://localhost:5218`.
 
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+Terminal 2:
 
 ```bash
-ng test
+cd frontend
+npm ci
+npm start
 ```
 
-## Running end-to-end tests
+Frontend: `http://localhost:4200`. Logga in med **simon / Demo123!**.
+Demo-inställningarna ligger i `backend/appsettings.Development.json` och används av utvecklingsprofilen.
+CORS tillåter frontend på exakt `http://localhost:4200`.
 
-For end-to-end (e2e) testing, run:
+## Arkitektur
+
+**Angular → HttpClient/HTTP med JSON → ASP.NET Core controllers i C# → task-lista i minnet.**
+
+- `app.ts` hanterar användarens handlingar, listan och felmeddelanden.
+- `services/task.ts` skickar GET, POST, PUT och DELETE.
+- `services/auth.ts` loggar in och lagrar token i `sessionStorage`.
+- `services/auth-interceptor.ts` lägger till Bearer-header på task-anrop till backend.
+- `TaskController.cs` hanterar uppgifterna. En räknare ger unika ID:n även efter radering.
+- `AuthController.cs` kontrollerar demo-inloggningen och skapar JWT.
+- `Program.cs` kopplar ihop controllers, CORS, authentication och authorization.
+
+Angular använder zoneless change detection. Efter HTTP-svar anropas `markForCheck()` så att
+vyn uppdateras utan ett extra klick. Listan ändras först efter lyckat API-svar. Knapparna
+inaktiveras medan ett anrop pågår. Vid misslyckad POST behålls den skrivna titeln.
+
+## Endpoints
+
+| Metod | Endpoint | Inloggning | Resultat |
+| --- | --- | --- | --- |
+| POST | `/api/auth/login` | Nej | 200 med `{ token, expiresAt }`; 401 vid fel uppgifter |
+| GET | `/api/tasks` | Ja | 200 med array av tasks |
+| POST | `/api/tasks` | Ja | 201 med skapad task |
+| PUT | `/api/tasks/{id}` | Ja | 200 med uppdaterad task; 404 om ID saknas |
+| DELETE | `/api/tasks/{id}` | Ja | 204 utan body; 404 om ID saknas |
+
+Login-body: `{ "username": "simon", "password": "Demo123!" }`.
+POST-body: `{ "title": "Visa projektet" }`.
+PUT-body: `{ "title": "Visa projektet", "isCompleted": true }`.
+ID i URL är det som används vid PUT. Tom titel ger 400. Saknad/ogiltig/utgången token ger 401.
+Angular visar meddelanden för 401, 404, nätverksfel och andra API-fel. Efter 404 kan listan
+hämtas igen med **Uppdatera listan**.
+
+## JWT, authentication och authorization
+
+1. Angular skickar användarnamn/lösenord till login-endpointen.
+2. Backend kontrollerar dem och returnerar en signerad JWT med användarnamn och 30 minuters giltighetstid.
+3. Angular lagrar token i `sessionStorage` (för den aktuella fliken, överlever omladdning).
+4. Interceptorn skickar `Authorization: Bearer <token>` på task-anrop.
+5. **Authentication** (`AddJwtBearer`/`UseAuthentication`) validerar signatur, issuer,
+   audience och giltighetstid och identifierar användaren.
+6. **Authorization** (`[Authorize]`/`UseAuthorization`) avgör om användaren får använda
+   task-endpointen. Här är regeln enkel: alla inloggade användare får använda alla tasks.
+7. Logout tar bort token och tömmer listan i UI:t. Vid 401 krävs ny inloggning.
+
+JWT är signerad, inte krypterad. Lösenordet finns inte i token.
+Implementationen använder Microsofts JWT Bearer-paket:
+[officiell dokumentation](https://learn.microsoft.com/en-us/aspnet/core/security/authentication/configure-jwt-bearer-authentication?view=aspnetcore-9.0).
+
+## Förenklingar och produktion
+
+Detta är en **lokal demo, inte produktionssäker autentisering**:
+
+- `simon / Demo123!` är ett avsiktligt offentligt lokalt utbildningskonto. Dessa credentials
+  får aldrig användas i produktion eller återanvändas för riktiga konton.
+- JWT-signeringsnyckeln skapas lokalt via user-secrets och ingår inte i Git.
+  Produktion kräver säker hemlighetshantering, riktig användarhantering och säkra
+  lösenordshashar eller en identitetsleverantör.
+- Tasks lagras i en delad statisk lista och försvinner vid backend-omstart. Ingen databas
+  eller koppling mellan task och användare. Ett lås skyddar listan vid samtidiga anrop.
+- HTTP används lokalt. Produktion behöver HTTPS och rätt CORS-konfiguration.
+- Token i `sessionStorage` är läsbar av JavaScript och kan stjälas vid XSS.
+  Produktionslösningen behöver en genomtänkt sessionslösning och XSS-skydd.
+- Ingen registrering, roller, refresh-token, rate limiting eller serverbaserad återkallelse.
+  Logout tar bara bort den lokala token; en kopierad token fungerar tills den går ut.
+- .NET/Angular och paket behöver hållas på supportade, uppdaterade versioner.
+
+## Verifiering
 
 ```bash
-ng e2e
+cd frontend
+npm test -- --watch=false
+npm run build
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+Från projektets rot:
 
-## Additional Resources
+```bash
+dotnet build backend/backend.csproj
+```
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Starta en separat test-backend i en terminal så att redovisningens data inte påverkas:
+
+```bash
+dotnet run --project backend --launch-profile http -- --urls http://localhost:5219
+```
+
+Kör sedan (Python 3, standardbibliotek):
+
+```bash
+python3 scripts/verify-api.py http://localhost:5219
+```
+
+API-testet kontrollerar login, JWT, 401 för alla task-metoder utan token, ogiltig token,
+GET/POST/PUT/DELETE, 400/404 och unika ID:n efter radering. Testuppgifterna raderas efteråt.
+Angular-testerna använder simulerade HTTP-svar och verkliga knappklick i en DOM-testmiljö:
+login/logout, Bearer-header, ett anrop per handling, direkt UI-uppdatering, 401/404 och nätverksfel.
+De ersätter inte ett fullständigt webbläsartest mot den riktiga backend-servern.
+
+## Demo för Marco
+
+1. Starta backend och frontend enligt ovan och öppna `http://localhost:4200`.
+2. Visa login och logga in med demo-användaren.
+3. Visa listan och lägg till **Visa TaskManager för Marco** med ett klick.
+4. Markera uppgiften klar, sedan inte klar. Visa att texten uppdateras direkt.
+5. Radera uppgiften och visa att antalet minskar.
+6. Öppna webbläsarens Network-panel: visa POST/PUT/DELETE och Bearer-header.
+   Visa att varje handling ger ett API-anrop (CORS kan också ge ett OPTIONS-anrop).
+7. Visa `[Authorize]` i backend och JWT-valideringen i `Program.cs`.
+8. Logga ut. Förklara att ett task-anrop utan token ger 401.
+9. Förklara att tasks ligger i minnet och att login är förenklad för utbildning.
+
+Senaste verifiering (7 oktober 2026): 10 Angular-tester godkända, frontend production build
+godkänd, backend build godkänd med 0 varningar och 0 fel, samt API-testet godkänt
+mot separat backend på port 5219. Inget fullständigt webbläsar-E2E-test har körts.

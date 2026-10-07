@@ -1,0 +1,58 @@
+<main>
+  <header>
+    <div><h1>TaskManager</h1><p>En enkel överblick över dina uppgifter</p></div>
+    @if (auth.token) {
+      <button type="button" (click)="logout()" [disabled]="busy">Logga ut</button>
+    }
+  </header>
+
+  @if (errorMessage) {
+    <p class="error" role="alert">{{ errorMessage }}</p>
+  }
+
+  @if (!auth.token) {
+    <section>
+      <h2>Logga in</h2>
+      <p>Demo: simon / Demo123!</p>
+      <form (ngSubmit)="login()">
+        <label for="username">Användarnamn</label>
+        <input id="username" name="username" [(ngModel)]="username" autocomplete="username" required [disabled]="busy">
+        <label for="password">Lösenord</label>
+        <input id="password" name="password" type="password" [(ngModel)]="password" autocomplete="current-password" required [disabled]="busy">
+        <button type="submit" [disabled]="busy || !username.trim() || !password">Logga in</button>
+      </form>
+    </section>
+  } @else {
+    <section>
+      <h2>Mina uppgifter</h2>
+      <form class="add-form" (ngSubmit)="addTask()">
+        <label for="task-title">Ny uppgift</label>
+        <div class="input-row">
+          <input id="task-title" name="title" [(ngModel)]="newTitle" placeholder="Skriv en ny uppgift" required [disabled]="busy">
+          <button type="submit" [disabled]="busy || !newTitle.trim()">Lägg till</button>
+        </div>
+      </form>
+      <div class="list-header">
+        <p>Antal tasks: {{ tasks.length }}</p>
+        <button type="button" (click)="loadTasks()" [disabled]="busy">Uppdatera listan</button>
+      </div>
+      <ul>
+        @for (task of tasks; track task.id) {
+          <li>
+            <div><span [class.completed]="task.isCompleted">{{ task.title }}</span>
+              <small>{{ task.isCompleted ? 'Klar' : 'Inte klar' }}</small></div>
+            <div class="actions">
+              <button type="button" (click)="toggleTask(task)" [disabled]="busy" [attr.aria-label]="(task.isCompleted ? 'Markera inte klar: ' : 'Markera klar: ') + task.title">
+                {{ task.isCompleted ? 'Markera inte klar' : 'Markera klar' }}
+              </button>
+              <button type="button" class="danger" (click)="deleteTask(task)" [disabled]="busy" [attr.aria-label]="'Radera: ' + task.title">Radera</button>
+            </div>
+          </li>
+        } @empty {
+          @if (!busy) { <li>Inga uppgifter ännu. Lägg till din första uppgift.</li> }
+        }
+      </ul>
+    </section>
+  }
+  @if (busy) { <p role="status">Väntar på servern…</p> }
+</main>
